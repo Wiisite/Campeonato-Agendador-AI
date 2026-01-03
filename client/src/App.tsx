@@ -13,12 +13,14 @@ import SearchPage from "@/pages/search";
 import LeadsPage from "@/pages/leads";
 import MeetingsPage from "@/pages/meetings";
 import ReportsPage from "@/pages/reports";
+import ProspectorPage from "@/pages/prospector";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
+      <Route path="/prospector" component={ProspectorPage} />
       <Route path="/search" component={SearchPage} />
       <Route path="/leads" component={LeadsPage} />
       <Route path="/meetings" component={MeetingsPage} />

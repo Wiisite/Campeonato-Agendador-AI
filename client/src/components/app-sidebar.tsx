@@ -6,6 +6,7 @@ import {
   Calendar,
   BarChart3,
   Goal,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,6 +26,11 @@ const menuItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Busca IA",
+    url: "/prospector",
+    icon: Sparkles,
   },
   {
     title: "Buscar",

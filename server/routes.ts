@@ -10,6 +10,7 @@ import {
   type LeadStatus,
 } from "@shared/schema";
 import { z } from "zod";
+import { searchOrganizations, type ProspectorQuery } from "./prospector";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -257,6 +258,48 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete meeting" });
+    }
+  });
+
+  app.post("/api/prospector/search", async (req, res) => {
+    try {
+      const query: ProspectorQuery = {
+        query: req.body.query || "",
+        sportType: req.body.sportType,
+        orgType: req.body.orgType,
+        state: req.body.state,
+        city: req.body.city,
+      };
+      
+      const results = await searchOrganizations(query);
+      res.json(results);
+    } catch (error) {
+      console.error("Prospector search error:", error);
+      res.status(500).json({ error: "Falha na busca com IA" });
+    }
+  });
+
+  app.post("/api/prospector/import", async (req, res) => {
+    try {
+      const { organizations } = req.body;
+      
+      if (!Array.isArray(organizations) || organizations.length === 0) {
+        return res.status(400).json({ error: "Nenhuma organização para importar" });
+      }
+
+      const imported = [];
+      for (const orgData of organizations) {
+        const parsed = insertOrganizationSchema.safeParse(orgData);
+        if (parsed.success) {
+          const org = await storage.createOrganization(parsed.data);
+          imported.push(org);
+        }
+      }
+
+      res.status(201).json({ imported, count: imported.length });
+    } catch (error) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: "Falha ao importar organizações" });
     }
   });
 
