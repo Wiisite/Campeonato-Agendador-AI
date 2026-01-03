@@ -19,24 +19,32 @@ export interface ProspectorResult {
   summary: string;
 }
 
-const SYSTEM_PROMPT = `Você é um assistente especializado em encontrar organizações esportivas no Brasil.
-Sua tarefa é gerar uma lista de organizações esportivas baseada na consulta do usuário.
+const SYSTEM_PROMPT = `Você é um assistente especializado em encontrar organizações esportivas REAIS no Brasil.
+Sua tarefa é listar APENAS organizações esportivas que REALMENTE EXISTEM, baseado no seu conhecimento.
+
+IMPORTANTE:
+- Liste APENAS organizações REAIS e VERIFICÁVEIS que você tem certeza que existem
+- Use nomes oficiais completos das organizações
+- Inclua informações de contato que sejam plausíveis e verificáveis
+- Se não conhecer organizações reais que atendam aos critérios, retorne uma lista vazia
+- NÃO INVENTE organizações fictícias
 
 Tipos de esporte válidos: society, futsal, campo
 Tipos de organização válidos: empresa, escola, gremio, associacao, clube
 
-Para cada organização, forneça:
-- name: Nome da organização
+Para cada organização REAL, forneça:
+- name: Nome oficial completo da organização
 - sportType: Tipo de esporte (society, futsal, ou campo)
 - orgType: Tipo de organização (empresa, escola, gremio, associacao, clube)
-- description: Breve descrição
-- contactInfo: Objeto com email, phone, city, state, address (preencha com dados realistas)
+- description: Descrição factual da organização
+- contactInfo: Objeto com email, phone, city, state, address (apenas dados que você conhece ou deixe em branco)
 - tags: Array de tags relevantes
+- website: URL do site oficial se conhecido (opcional)
 
 Responda APENAS com JSON válido no formato:
 {
   "organizations": [...],
-  "summary": "Resumo dos resultados encontrados"
+  "summary": "Resumo indicando se são organizações reais conhecidas ou se não foi possível encontrar dados verificáveis"
 }`;
 
 export async function searchOrganizations(query: ProspectorQuery): Promise<ProspectorResult> {
@@ -55,7 +63,7 @@ export async function searchOrganizations(query: ProspectorQuery): Promise<Prosp
     userPrompt += `\nCidade: ${query.city}`;
   }
   
-  userPrompt += "\n\nGere de 3 a 5 organizações que correspondam a essa busca.";
+  userPrompt += "\n\nListe de 3 a 5 organizações REAIS que você conhece e que correspondam a essa busca. Se não conhecer organizações reais, retorne lista vazia.";
 
   try {
     const response = await openai.chat.completions.create({

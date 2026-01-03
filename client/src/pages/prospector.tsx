@@ -166,7 +166,7 @@ export default function ProspectorPage() {
         <CardHeader>
           <CardTitle>Descreva o que você procura</CardTitle>
           <CardDescription>
-            A IA vai gerar sugestões de organizações baseadas na sua descrição
+            A IA vai buscar organizações reais baseadas no seu conhecimento. Recomendamos verificar os dados antes de usar.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -255,7 +255,12 @@ export default function ProspectorPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle>Resultados da IA</CardTitle>
-                <CardDescription>{results.summary}</CardDescription>
+                <CardDescription>
+                  {results.summary}
+                  <span className="block text-xs mt-1 text-amber-600 dark:text-amber-400">
+                    Verifique os dados antes de usar - resultados baseados no conhecimento da IA
+                  </span>
+                </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
