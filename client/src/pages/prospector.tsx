@@ -52,12 +52,20 @@ const brazilianStates = [
   "SP", "SE", "TO"
 ];
 
+const resultLimitOptions = [
+  { value: "5", label: "5 resultados" },
+  { value: "10", label: "10 resultados" },
+  { value: "15", label: "15 resultados" },
+  { value: "20", label: "20 resultados (máximo)" },
+];
+
 export default function ProspectorPage() {
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [sportType, setSportType] = useState<SportType | "">("");
   const [orgType, setOrgType] = useState<OrganizationType | "">("");
   const [state, setState] = useState("");
+  const [resultLimit, setResultLimit] = useState("20");
   const [results, setResults] = useState<ProspectorResult | null>(null);
   const [selectedOrgs, setSelectedOrgs] = useState<Set<number>>(new Set());
 
@@ -68,6 +76,7 @@ export default function ProspectorPage() {
         sportType: sportType || undefined,
         orgType: orgType || undefined,
         state: state || undefined,
+        limit: parseInt(resultLimit, 10),
       });
       return response.json() as Promise<ProspectorResult>;
     },
@@ -180,7 +189,7 @@ export default function ProspectorPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Select
               value={sportType || "all"}
               onValueChange={(v) => setSportType(v === "all" ? "" : v as SportType)}
@@ -227,6 +236,22 @@ export default function ProspectorPage() {
                 {brazilianStates.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={resultLimit}
+              onValueChange={setResultLimit}
+            >
+              <SelectTrigger data-testid="select-ai-limit">
+                <SelectValue placeholder="Quantidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {resultLimitOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -269,6 +269,7 @@ export async function registerRoutes(
         orgType: req.body.orgType,
         state: req.body.state,
         city: req.body.city,
+        limit: req.body.limit ? Math.min(Math.max(parseInt(req.body.limit, 10), 5), 20) : 15,
       };
       
       const results = await searchOrganizations(query);

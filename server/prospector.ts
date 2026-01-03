@@ -12,6 +12,7 @@ export interface ProspectorQuery {
   orgType?: OrganizationType;
   state?: string;
   city?: string;
+  limit?: number;
 }
 
 export interface ProspectorResult {
@@ -63,7 +64,8 @@ export async function searchOrganizations(query: ProspectorQuery): Promise<Prosp
     userPrompt += `\nCidade: ${query.city}`;
   }
   
-  userPrompt += "\n\nListe pelo menos 15 organizações REAIS que você conhece e que correspondam a essa busca. Se não conhecer organizações reais suficientes, liste todas que conhecer.";
+  const resultLimit = Math.min(Math.max(query.limit || 15, 5), 20);
+  userPrompt += `\n\nListe até ${resultLimit} organizações REAIS que você conhece e que correspondam a essa busca. Priorize as mais relevantes primeiro. Se não conhecer organizações reais suficientes, liste todas que conhecer.`;
 
   try {
     const response = await openai.chat.completions.create({
