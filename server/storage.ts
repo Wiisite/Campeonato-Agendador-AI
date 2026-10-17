@@ -314,6 +314,9 @@ export class MemStorage implements IStorage {
     const organization: Organization = {
       ...org,
       id,
+      description: org.description ?? null,
+      contactInfo: org.contactInfo ?? null,
+      tags: org.tags ?? null,
       createdAt: new Date(),
     };
     this.organizations.set(id, organization);
@@ -330,6 +333,16 @@ export class MemStorage implements IStorage {
   }
 
   async deleteOrganization(id: string): Promise<boolean> {
+    if (!this.organizations.has(id)) return false;
+
+    // Remove os leads da organização (e, em cascata, reuniões e interações)
+    const leadIds = Array.from(this.leads.values())
+      .filter((l) => l.organizationId === id)
+      .map((l) => l.id);
+    for (const leadId of leadIds) {
+      await this.deleteLead(leadId);
+    }
+
     return this.organizations.delete(id);
   }
 

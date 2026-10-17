@@ -32,6 +32,11 @@ interface ProspectorResult {
   summary: string;
 }
 
+interface ImportResult {
+  count: number;
+  rejected: { name: string; reasons: string[] }[];
+}
+
 const sportTypeOptions: { value: SportType; label: string }[] = [
   { value: "society", label: "Society" },
   { value: "futsal", label: "Futsal" },
@@ -88,10 +93,18 @@ export default function ProspectorPage() {
         description: data.summary,
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      let description = "Não foi possível realizar a busca com IA. Tente novamente.";
+      if (error.message.startsWith("429")) {
+        try {
+          description = JSON.parse(error.message.replace(/^\d+:\s*/, "")).error ?? description;
+        } catch {
+          // mantém a mensagem genérica
+        }
+      }
       toast({
         title: "Erro na busca",
-        description: "Não foi possível realizar a busca com IA. Tente novamente.",
+        description,
         variant: "destructive",
       });
     },
@@ -104,19 +117,39 @@ export default function ProspectorPage() {
       });
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ImportResult) => {
+      const rejectedCount = data.rejected?.length ?? 0;
       toast({
         title: "Importação concluída",
-        description: `${data.count} organizações importadas com sucesso.`,
+        description:
+          rejectedCount > 0
+            ? `${data.count} importadas, ${rejectedCount} ignoradas por dados inválidos (${data.rejected
+                .map((r) => r.name)
+                .join(", ")}).`
+            : `${data.count} organizações importadas com sucesso.`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
       setResults(null);
       setSelectedOrgs(new Set());
     },
-    onError: () => {
+    onError: (error: Error) => {
+      // apiRequest lança "<status>: <corpo>"; tenta extrair os motivos da rejeição
+      let description = "Não foi possível importar as organizações.";
+      try {
+        const body = JSON.parse(error.message.replace(/^\d+:\s*/, "")) as Partial<ImportResult> & { error?: string };
+        if (body.rejected?.length) {
+          description = `Nenhuma organização válida. Motivos: ${body.rejected
+            .map((r) => `${r.name} (${r.reasons.join("; ")})`)
+            .join(" | ")}`;
+        } else if (body.error) {
+          description = body.error;
+        }
+      } catch {
+        // mantém a mensagem genérica
+      }
       toast({
         title: "Erro na importação",
-        description: "Não foi possível importar as organizações.",
+        description,
         variant: "destructive",
       });
     },
@@ -325,6 +358,8 @@ export default function ProspectorPage() {
                     <Checkbox
                       checked={selectedOrgs.has(idx)}
                       onCheckedChange={() => toggleSelection(idx)}
+                      // evita que o clique suba para o card e alterne a seleção duas vezes
+                      onClick={(e) => e.stopPropagation()}
                       data-testid={`checkbox-ai-result-${idx}`}
                     />
                     <div className="flex-1 min-w-0">

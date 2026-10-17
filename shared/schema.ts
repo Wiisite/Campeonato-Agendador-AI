@@ -21,6 +21,12 @@ export type MeetingType = (typeof meetingTypes)[number];
 export const interactionTypes = ["email", "ligacao", "reuniao", "nota"] as const;
 export type InteractionType = (typeof interactionTypes)[number];
 
+// Aceita string ou Date, mas rejeita valores que não viram uma data válida
+const dateInputSchema = z
+  .string()
+  .or(z.date())
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), { message: "Data inválida" });
+
 export const contactInfoSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
@@ -67,6 +73,8 @@ export const insertOrganizationSchema = createInsertSchema(organizations).omit({
   tags: z.array(z.string()).optional(),
 });
 
+export const updateOrganizationSchema = insertOrganizationSchema.partial();
+
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = typeof organizations.$inferSelect;
 
@@ -87,6 +95,8 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   status: z.enum(leadStatuses).optional(),
   priority: z.number().min(1).max(5).optional(),
 });
+
+export const updateLeadSchema = insertLeadSchema.partial();
 
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
@@ -110,9 +120,11 @@ export const insertMeetingSchema = createInsertSchema(meetings).omit({
 }).extend({
   meetingType: z.enum(meetingTypes),
   status: z.enum(meetingStatuses).optional(),
-  scheduledFor: z.string().or(z.date()),
+  scheduledFor: dateInputSchema,
   duration: z.number().min(15).max(480).optional(),
 });
+
+export const updateMeetingSchema = insertMeetingSchema.partial();
 
 export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
 export type Meeting = typeof meetings.$inferSelect;
@@ -132,7 +144,7 @@ export const insertInteractionSchema = createInsertSchema(interactions).omit({
   createdAt: true,
 }).extend({
   type: z.enum(interactionTypes),
-  occurredAt: z.string().or(z.date()).optional(),
+  occurredAt: dateInputSchema.optional(),
 });
 
 export type InsertInteraction = z.infer<typeof insertInteractionSchema>;

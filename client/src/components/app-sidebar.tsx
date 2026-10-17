@@ -7,7 +7,10 @@ import {
   BarChart3,
   Goal,
   Sparkles,
+  LogOut,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Sidebar,
   SidebarContent,
@@ -93,7 +96,21 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-start"
+          onClick={async () => {
+            await apiRequest("POST", "/api/auth/logout").catch(() => {});
+            queryClient.clear();
+            queryClient.setQueryData(["/api/auth/me"], { authenticated: false });
+          }}
+          data-testid="button-logout"
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sair
+        </Button>
         <div className="text-xs text-muted-foreground">
           v1.0.0 - SportsCRM
         </div>

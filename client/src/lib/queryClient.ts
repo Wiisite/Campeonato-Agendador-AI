@@ -1,6 +1,10 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
+  // Sessão expirada: volta para a tela de login
+  if (res.status === 401 && !res.url.includes("/api/auth/")) {
+    queryClient.setQueryData(["/api/auth/me"], { authenticated: false });
+  }
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);

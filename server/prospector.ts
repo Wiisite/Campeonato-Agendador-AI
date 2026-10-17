@@ -1,10 +1,18 @@
 import OpenAI from "openai";
-import type { Organization, InsertOrganization, SportType, OrganizationType } from "@shared/schema";
+import { z } from "zod";
+import type { InsertOrganization, SportType, OrganizationType, ContactInfo } from "@shared/schema";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Criado sob demanda para o servidor subir mesmo sem a chave configurada
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+    });
+  }
+  return openaiClient;
+}
 
 export interface ProspectorQuery {
   query: string;
@@ -20,7 +28,54 @@ export interface ProspectorResult {
   summary: string;
 }
 
-const SYSTEM_PROMPT = `Você é um assistente especializado em encontrar organizações esportivas REAIS no Brasil.
+function cleanString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+// A IA costuma devolver "" em campos desconhecidos, e-mails/URLs mal formados
+// e o website fora de contactInfo. Normaliza tudo isso para que a validação
+// descarte apenas o campo ruim, e não a organização inteira.
+export function normalizeProspectedOrganization(raw: unknown): Partial<InsertOrganization> {
+  if (!raw || typeof raw !== "object") return {};
+  const org = raw as Record<string, any>;
+  const rawContact = org.contactInfo && typeof org.contactInfo === "object" ? org.contactInfo : {};
+
+  let email = cleanString(rawContact.email);
+  if (email && !z.string().email().safeParse(email).success) email = undefined;
+
+  let website = cleanString(rawContact.website) ?? cleanString(org.website);
+  if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
+  if (website && !z.string().url().safeParse(website).success) website = undefined;
+
+  const contactInfo: ContactInfo = {
+    email,
+    phone: cleanString(rawContact.phone),
+    website,
+    address: cleanString(rawContact.address),
+    city: cleanString(rawContact.city),
+    state: cleanString(rawContact.state)?.toUpperCase(),
+  };
+  (Object.keys(contactInfo) as (keyof ContactInfo)[]).forEach((key) => {
+    if (contactInfo[key] === undefined) delete contactInfo[key];
+  });
+
+  const tags = Array.isArray(org.tags)
+    ? org.tags.map(cleanString).filter((tag): tag is string => !!tag)
+    : undefined;
+
+  return {
+    name: cleanString(org.name),
+    sportType: cleanString(org.sportType)?.toLowerCase() as SportType | undefined,
+    orgType: cleanString(org.orgType)?.toLowerCase() as OrganizationType | undefined,
+    description: cleanString(org.description),
+    contactInfo: Object.keys(contactInfo).length > 0 ? contactInfo : undefined,
+    tags,
+  };
+}
+
+const SYSTEM_PROMPT =`Você é um assistente especializado em encontrar organizações esportivas REAIS no Brasil.
 Sua tarefa é listar APENAS organizações esportivas que REALMENTE EXISTEM, baseado no seu conhecimento.
 
 IMPORTANTE:
@@ -68,7 +123,7 @@ export async function searchOrganizations(query: ProspectorQuery): Promise<Prosp
   userPrompt += `\n\nListe até ${resultLimit} organizações REAIS que você conhece e que correspondam a essa busca. Priorize as mais relevantes primeiro. Se não conhecer organizações reais suficientes, liste todas que conhecer.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4.1",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -81,8 +136,12 @@ export async function searchOrganizations(query: ProspectorQuery): Promise<Prosp
     const content = response.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content) as ProspectorResult;
     
+    const organizations = Array.isArray(parsed.organizations) ? parsed.organizations : [];
+
     return {
-      organizations: parsed.organizations || [],
+      organizations: organizations
+        .map(normalizeProspectedOrganization)
+        .filter((org) => !!org.name),
       summary: parsed.summary || "Busca concluída",
     };
   } catch (error) {
@@ -99,7 +158,7 @@ Mantenha os dados existentes e adicione ou complete campos faltantes.
 Responda APENAS com JSON válido da organização enriquecida.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4.1",
       messages: [
         { role: "system", content: "Você é um assistente que enriquece dados de organizações esportivas brasileiras." },

@@ -6,16 +6,25 @@ import {
   insertLeadSchema,
   insertMeetingSchema,
   insertInteractionSchema,
+  updateOrganizationSchema,
+  updateLeadSchema,
+  updateMeetingSchema,
   type SearchFilters,
   type LeadStatus,
 } from "@shared/schema";
 import { z } from "zod";
-import { searchOrganizations, type ProspectorQuery } from "./prospector";
+import { setupAuth, aiRateLimit } from "./auth";
+import {
+  searchOrganizations,
+  normalizeProspectedOrganization,
+  type ProspectorQuery,
+} from "./prospector";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  setupAuth(app);
 
   app.get("/api/dashboard/metrics", async (req, res) => {
     try {
@@ -80,7 +89,11 @@ export async function registerRoutes(
 
   app.patch("/api/organizations/:id", async (req, res) => {
     try {
-      const organization = await storage.updateOrganization(req.params.id, req.body);
+      const parsed = updateOrganizationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.issues });
+      }
+      const organization = await storage.updateOrganization(req.params.id, parsed.data);
       if (!organization) {
         return res.status(404).json({ error: "Organization not found" });
       }
@@ -138,6 +151,9 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.issues });
       }
+      if (!(await storage.getOrganization(parsed.data.organizationId))) {
+        return res.status(400).json({ error: "Organization not found" });
+      }
       const lead = await storage.createLead(parsed.data);
       res.status(201).json(lead);
     } catch (error) {
@@ -147,7 +163,14 @@ export async function registerRoutes(
 
   app.patch("/api/leads/:id", async (req, res) => {
     try {
-      const lead = await storage.updateLead(req.params.id, req.body);
+      const parsed = updateLeadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.issues });
+      }
+      if (parsed.data.organizationId && !(await storage.getOrganization(parsed.data.organizationId))) {
+        return res.status(400).json({ error: "Organization not found" });
+      }
+      const lead = await storage.updateLead(req.params.id, parsed.data);
       if (!lead) {
         return res.status(404).json({ error: "Lead not found" });
       }
@@ -186,6 +209,9 @@ export async function registerRoutes(
       });
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.issues });
+      }
+      if (!(await storage.getLead(req.params.id))) {
+        return res.status(404).json({ error: "Lead not found" });
       }
       const interaction = await storage.createInteraction(parsed.data);
       res.status(201).json(interaction);
@@ -230,6 +256,9 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.issues });
       }
+      if (!(await storage.getLead(parsed.data.leadId))) {
+        return res.status(400).json({ error: "Lead not found" });
+      }
       const meeting = await storage.createMeeting(parsed.data);
       res.status(201).json(meeting);
     } catch (error) {
@@ -239,7 +268,14 @@ export async function registerRoutes(
 
   app.patch("/api/meetings/:id", async (req, res) => {
     try {
-      const meeting = await storage.updateMeeting(req.params.id, req.body);
+      const parsed = updateMeetingSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.issues });
+      }
+      if (parsed.data.leadId && !(await storage.getLead(parsed.data.leadId))) {
+        return res.status(400).json({ error: "Lead not found" });
+      }
+      const meeting = await storage.updateMeeting(req.params.id, parsed.data);
       if (!meeting) {
         return res.status(404).json({ error: "Meeting not found" });
       }
@@ -261,7 +297,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/prospector/search", async (req, res) => {
+  app.post("/api/prospector/search", aiRateLimit(), async (req, res) => {
     try {
       const query: ProspectorQuery = {
         query: req.body.query || "",
@@ -289,15 +325,26 @@ export async function registerRoutes(
       }
 
       const imported = [];
+      const rejected: { name: string; reasons: string[] }[] = [];
       for (const orgData of organizations) {
-        const parsed = insertOrganizationSchema.safeParse(orgData);
+        const normalized = normalizeProspectedOrganization(orgData);
+        const parsed = insertOrganizationSchema.safeParse(normalized);
         if (parsed.success) {
           const org = await storage.createOrganization(parsed.data);
           imported.push(org);
+        } else {
+          rejected.push({
+            name: normalized.name || "(sem nome)",
+            reasons: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+          });
         }
       }
 
-      res.status(201).json({ imported, count: imported.length });
+      res.status(imported.length > 0 ? 201 : 422).json({
+        imported,
+        count: imported.length,
+        rejected,
+      });
     } catch (error) {
       console.error("Import error:", error);
       res.status(500).json({ error: "Falha ao importar organizações" });

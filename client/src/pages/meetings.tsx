@@ -82,6 +82,7 @@ export default function MeetingsPage() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [showNewMeetingDialog, setShowNewMeetingDialog] = useState(params.get("new") === "true");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedTime, setSelectedTime] = useState("09:00");
   const [viewMode, setViewMode] = useState<"week" | "list">("week");
 
   const [newMeeting, setNewMeeting] = useState<Partial<InsertMeeting>>({
@@ -171,6 +172,7 @@ export default function MeetingsPage() {
       notes: "",
     });
     setSelectedDate(new Date());
+    setSelectedTime("09:00");
   };
 
   const weekDays = useMemo(() => {
@@ -223,9 +225,10 @@ export default function MeetingsPage() {
       return;
     }
 
-    const scheduledDate = selectedDate || new Date();
-    const [hours, minutes] = (newMeeting.scheduledFor?.split("T")[1]?.slice(0, 5) || "09:00").split(":");
-    scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    // Monta a data no fuso local a partir do dia e do horário escolhidos
+    const scheduledDate = new Date(selectedDate || new Date());
+    const [hours, minutes] = (selectedTime || "09:00").split(":");
+    scheduledDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
 
     createMeetingMutation.mutate({
       ...newMeeting,
@@ -545,13 +548,8 @@ export default function MeetingsPage() {
                 <Input
                   id="time"
                   type="time"
-                  defaultValue="09:00"
-                  onChange={(e) => {
-                    const date = selectedDate || new Date();
-                    const [hours, minutes] = e.target.value.split(":");
-                    date.setHours(parseInt(hours), parseInt(minutes));
-                    setNewMeeting((prev) => ({ ...prev, scheduledFor: date.toISOString() }));
-                  }}
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
                   data-testid="input-meeting-time"
                 />
               </div>
